@@ -1,0 +1,104 @@
+library(PPforest)
+data(fishcatch)
+
+head(fishcatch)
+colnames(fishcatch)
+any(is.na(fishcatch))
+fishcatch
+summary(fishcatch)
+plot(fishcatch)
+
+#Check the relationships and correlations of firstly, the predictors with the dependent variable
+#and then the predictors with the other predictors
+
+upper.panel<-function(x, y){
+  points(x,y, pch=19, col=4)
+  r <- round(cor(x, y), digits=3)
+  txt <- paste0("r = ", r)
+  usr <- par("usr"); on.exit(par(usr))
+  par(usr = c(0, 1, 0, 1))
+  text(0.5, 0.9, txt)
+}
+pairs(fishcatch, lower.panel = NULL, 
+      upper.panel = upper.panel)
+
+#Carry out initial regression with all the independent variables
+
+initial_model <- lm(weight ~. , data = fishcatch)
+
+summary(initial_model)
+
+#Plot the regression to find the residual plots to test assumptions
+
+par(mfrow=c(1,1))
+plot(initial_model)
+
+#Check VIF score for multicollinearity
+
+vif(initial_model)
+
+#Then start to restrict the model using AIC to choose the best model
+
+null <- lm(fishcatch$weight ~ 1, data = fishcatch)
+full <- lm(fishcatch$weight ~., data = fishcatch)
+step(null, scope=formula(full), direction="forward")
+step(full, direction="backward")
+step(null, scope = list(upper=full), direction="both")
+
+
+#Compress the R output
+Forward <- step(null, scope=list(lower=null, upper=full), direction="forward", trace=0)
+summary(Forward)
+Backward <- step(full, direction="backward", trace=0)
+summary(Backward)
+Stepwise <- step(null, scope = list(upper=full), direction="both", trace=0)
+summary(Stepwise)
+
+#Calculate AIC for each selection process
+
+AIC(Forward)
+AIC(Backward)
+AIC(Stepwise)
+
+#Analyse the new model
+
+model1 <- lm(fishcatch$weight ~ Type + length3 + height, data = fishcatch)
+summary(model1)
+plot(model1)
+vif(model1)
+
+#Create quadratic terms and add them to the model
+
+t_length3 <- fishcatch$length3^2
+t_height <- fishcatch$height^2
+model2 <- lm(fishcatch$weight ~ fishcatch$Type + length3 + fishcatch$height + t_length3 + t_height, data = fishcatch)
+summary(model2)
+plot(model2)
+
+par(mfrow=c(1,1))
+plot(initial_model)
+plot(model2)
+confint(model2, level=0.95)
+
+#Create a graph to show the regression model fitted to the data for length3
+
+ggplot(data = fishcatch, aes(x = length3, y = weight)) +
+  geom_point() +
+  stat_smooth(method = "lm", col = "dodgerblue3") +
+  theme(panel.background = element_rect(fill = "white"),
+        axis.line.x=element_line(),
+        axis.line.y=element_line()) +
+  ggtitle("Linear Model Fitted to Data")
+
+#Create a variable which maps the predictions of weight using the regression
+
+pred <- predict(model2, data=fishcatch)
+
+#Graph the prediction vs the actual data to see how close it is
+
+plot(fishcatch$weight, type ="l", col = "black", xlab = "Data Index", ylab = "weight", main = "Scatterplot of actual vs predicted weights")
+lines(pred, type = "l", lty = 1.6, col = "darkorange")
+legend(x=0,y=1650,c("Actual","Predicted"),cex=0.8,col=c("black","orange"),lty=c(1,1))
+
+
+
